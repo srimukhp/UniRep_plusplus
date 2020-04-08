@@ -1,0 +1,20 @@
+﻿one letter code,amino acid name,filename
+G,glycine,Glycine.xyz
+P,proline,L-Proline.xyz
+A,alanine,L-Alanine.xyz
+V,valine,L-Valine.xyz
+L,leucine,L-Leucine.xyz
+I,isoleucine,L-Isoleucine.xyz
+M,methionine,L-Methionine.xyz
+C,cysteine,L-Cysteine.xyz
+F,phenylalanine,L-Phenylalanine.xyz
+Y,tyrosine,L-Tyrosine.xyz
+W,tryptophan,L-Tryptophan.xyz
+H,histidine,L-Histidine.xyz
+K,lysine,L-Lysine.xyz
+R,arginine,L-Arginine.xyz
+Q,glutamine,L-Glutamine.xyz
+N,asparagine,L-Asparagine.xyz
+E,glutamic acid,L-Glutamic_acid.xyz
+S,serine,L-Serine.xyz
+T,threonine,L-Threonine.xyz
