@@ -1,0 +1,10 @@
+Instructions (general instructions are here: https://www.uniprot.org/help/retrieve_sets)
+1.      Type “annotation:(type:act_site)” (without quotes) into the uniprot search bar
+2.      At the top of the entries, click the button that says “Columns” with a pencil next to it
+3.      Check “sequence” under sequences and “active site” and “binding site” under function
+4.      Click save
+5.      Click the Reviewed by Swiss-Prot button on the left
+6.      Click the download button, select download all, tab format, uncompressed then click go
+7.      Save the file as uniprot.tab somewhere of your choosing
+The active sites/binding sites are saved as strings, see notebook for turning them into lists of just the site indices.
+
