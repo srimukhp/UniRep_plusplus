@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import sys
 sys.path.append('../')
-from data_utils import aa_seq_to_int, int_to_aa, bucketbatchpad
+from .data_utils import aa_seq_to_int, int_to_aa, bucketbatchpad
 import os
 
 # Helpers
@@ -125,15 +125,16 @@ class mLSTMCell1900(tf.nn.rnn_cell.RNNCell):
         h = o * tf.tanh(c)
         return h, (c, h)
 
+he_init = tf.contrib.layers.variance_scaling_initializer()
 class mLSTMCell(tf.nn.rnn_cell.RNNCell):
 
     def __init__(self,
                  num_units,
-                 wx_init=tf.orthogonal_initializer(),
-                 wh_init=tf.orthogonal_initializer(),
-                 wmx_init=tf.orthogonal_initializer(),
+                 wx_init=he_init,
+                 wh_init=he_init,
+                 wmx_init=he_init,
                  wmh_init=tf.orthogonal_initializer(),
-                 b_init=tf.orthogonal_initializer(),
+                 b_init=tf.ones_initializer(),
                  gx_init=tf.ones_initializer(),
                  gh_init=tf.ones_initializer(),
                  gmx_init=tf.ones_initializer(),
@@ -141,10 +142,12 @@ class mLSTMCell(tf.nn.rnn_cell.RNNCell):
                  wn=True,
                  scope='mlstm',
                  var_device='cpu:0',
+                 emb_size=10
                  ):
         # Really not sure if I should reuse here
         super(mLSTMCell, self).__init__()
         self._num_units = num_units
+        self._emb_size = emb_size
         self._wn = wn
         self._scope = scope
         self._var_device = var_device
@@ -182,24 +185,24 @@ class mLSTMCell(tf.nn.rnn_cell.RNNCell):
         c_prev, h_prev = state
         with tf.variable_scope(self._scope):
             wx = tf.get_variable(
-                "wx", initializer=self._wx_init)
+                "wx", shape=[self._emb_size, 4*self._num_units], initializer=self._wx_init)
             wh = tf.get_variable(
-                "wh", initializer=self._wh_init)
+                "wh", shape=[self._num_units, 4*self._num_units], initializer=self._wh_init)
             wmx = tf.get_variable(
-                "wmx", initializer=self._wmx_init)
+                "wmx", shape=[self._emb_size, self._num_units],initializer=self._wmx_init)
             wmh = tf.get_variable(
-                "wmh", initializer=self._wmh_init)
+                "wmh", shape=[self._num_units, self._num_units],initializer=self._wmh_init)
             b = tf.get_variable(
-                "b", initializer=self._b_init)
+                "b", shape=[4*self._num_units,],initializer=self._b_init)
             if self._wn:
                 gx = tf.get_variable(
-                    "gx", initializer=self._gx_init)
+                    "gx", shape=[4*self._num_units,],initializer=self._gx_init)
                 gh = tf.get_variable(
-                    "gh", initializer=self._gh_init)
+                    "gh", shape=[4*self._num_units,],initializer=self._gh_init)
                 gmx = tf.get_variable(
-                    "gmx", initializer=self._gmx_init)
+                    "gmx", shape=[self._num_units,],initializer=self._gmx_init)
                 gmh = tf.get_variable(
-                    "gmh", initializer=self._gmh_init)
+                    "gmh", shape=[self._num_units,],initializer=self._gmh_init)
 
         if self._wn:
             wx = tf.nn.l2_normalize(wx, dim=0) * gx
@@ -227,7 +230,9 @@ class mLSTMCellStackNPY(tf.nn.rnn_cell.RNNCell):
                  wn=True,
                  scope='mlstm_stack',
                  var_device='cpu:0',
-                 model_path="./"
+                 model_path="./",
+                 new=False, 
+                 emb_size=10
                  ):
         # Really not sure if I should reuse here
         super(mLSTMCellStackNPY, self).__init__()
@@ -241,21 +246,26 @@ class mLSTMCellStackNPY(tf.nn.rnn_cell.RNNCell):
         self._var_device = var_device
         bs = "rnn_mlstm_stack_mlstm_stack" # base scope see weight file names
         join = lambda x: os.path.join(self._model_path, x)
-        layers = [mLSTMCell(
-            num_units=self._num_units,
-            wn=self._wn,
-            scope=self._scope + str(i),
-            var_device=self._var_device,
-            wx_init=np.load(join(bs + "{0}_mlstm_stack{1}_wx_0.npy".format(i,i))),
-            wh_init=np.load(join(bs + "{0}_mlstm_stack{1}_wh_0.npy".format(i,i))),
-            wmx_init=np.load(join(bs + "{0}_mlstm_stack{1}_wmx_0.npy".format(i,i))),
-            wmh_init=np.load(join(bs + "{0}_mlstm_stack{1}_wmh_0.npy".format(i,i))),
-            b_init=np.load(join(bs + "{0}_mlstm_stack{1}_b_0.npy".format(i,i))),
-            gx_init=np.load(join(bs + "{0}_mlstm_stack{1}_gx_0.npy".format(i,i))),
-            gh_init=np.load(join(bs + "{0}_mlstm_stack{1}_gh_0.npy".format(i,i))),
-            gmx_init=np.load(join(bs + "{0}_mlstm_stack{1}_gmx_0.npy".format(i,i))),
-            gmh_init=np.load(join(bs + "{0}_mlstm_stack{1}_gmh_0.npy".format(i,i)))      
-                 ) for i in range(self._num_layers)]
+        if new:
+            layers = [mLSTMCell(num_units=self._num_units, wn=self._wn, scope=self._scope+str(i),
+                                var_device=self._var_device, emb_size=(i==0)*emb_size+(i>0)*num_units) for i in range(self._num_layers)]
+        else:
+            layers = [mLSTMCell(
+                num_units=self._num_units,
+                wn=self._wn,
+                scope=self._scope + str(i),
+                var_device=self._var_device,
+                wx_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_wx_0.npy".format(i,i)))),
+                wh_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_wh_0.npy".format(i,i)))),
+                wmx_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_wmx_0.npy".format(i,i)))),
+                wmh_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_wmh_0.npy".format(i,i)))),
+                b_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_b_0.npy".format(i,i)))),
+                gx_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_gx_0.npy".format(i,i)))),
+                gh_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_gh_0.npy".format(i,i)))),
+                gmx_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_gmx_0.npy".format(i,i)))),
+                gmh_init=tf.constant_initializer(np.load(join(bs + "{0}_mlstm_stack{1}_gmh_0.npy".format(i,i)))),
+                emb_size=(i==0)*emb_size+(i>0)*num_units      
+                     ) for i in range(self._num_layers)]
         if self._dropout:
             layers = [
                 tf.contrib.rnn.DropoutWrapper(
@@ -313,9 +323,10 @@ class babbler1900():
 
     def __init__(self,
                  model_path="./pbab_weights",
-                 batch_size=256
-                 ):
-        self._rnn_size = 1900
+                 batch_size=256, trained=False,
+                 rnn_size=1900, new=False, n_layers=1):
+        self._rnn_size = rnn_size
+        self._num_layers = n_layers
         self._vocab_size = 26
         self._embed_dim = 10
         self._wn = True
@@ -325,12 +336,21 @@ class babbler1900():
         self._batch_size_placeholder = tf.placeholder(tf.int32, shape=[], name="batch_size")
         self._minibatch_x_placeholder = tf.placeholder(
             tf.int32, shape=[None, None], name="minibatch_x")
-        self._initial_state_placeholder = (
-            tf.placeholder(tf.float32, shape=[None, self._rnn_size]),
-            tf.placeholder(tf.float32, shape=[None, self._rnn_size])
+        if n_layers == 1:
+            self._initial_state_placeholder = (
+                tf.placeholder(tf.float32, shape=[None, self._rnn_size]),
+                tf.placeholder(tf.float32, shape=[None, self._rnn_size])
+            )
+        else:
+            self._initial_state_placeholder = (
+                tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers)),
+                tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers))
         )
+
         self._minibatch_y_placeholder = tf.placeholder(
             tf.int32, shape=[None, None], name="minibatch_y")
+        self._minibatch_site_y_placeholder = tf.placeholder(
+            tf.int32, shape=[None, None], name="minibatch_site_y")
         # Batch size dimensional placeholder which gives the
         # Lengths of the input sequence batch. Used to index into
         # The final_hidden output and select the stop codon -1
@@ -338,9 +358,19 @@ class babbler1900():
         self._seq_length_placeholder = tf.placeholder(
             tf.int32, shape=[None], name="seq_len")
         self._temp_placeholder = tf.placeholder(tf.float32, shape=[], name="temp")
-        rnn = mLSTMCell1900(self._rnn_size,
-                    model_path=model_path,
-                        wn=self._wn)
+        if n_layers ==1:
+            if new:
+                rnn = mLSTMCell(self._rnn_size, wn=self._wn, emb_size=self._embed_dim)
+            else:
+                rnn = mLSTMCell1900(self._rnn_size,
+                        model_path=model_path,
+                            wn=self._wn)
+        elif n_layers > 1:
+            rnn = mLSTMCellStackNPY(num_units=self._rnn_size,
+                            num_layers=self._num_layers,
+                            model_path=model_path,
+                            wn=self._wn, new=new, emb_size=self._embed_dim)
+
         zero_state = rnn.zero_state(self._batch_size, tf.float32)
         single_zero = rnn.zero_state(1, tf.float32)
         mask = tf.sign(self._minibatch_y_placeholder)  # 1 for nonpad, zero for pad
@@ -350,9 +380,17 @@ class babbler1900():
 
         pad_adjusted_targets = (self._minibatch_y_placeholder - 1) + inverse_mask
 
-        embed_matrix = tf.get_variable(
-            "embed_matrix", dtype=tf.float32, initializer=np.load(os.path.join(self._model_path, "embed_matrix_0.npy"))
+        if new:
+            embedding_initializer = he_init
+            embed_matrix = tf.get_variable(
+            "embed_matrix", shape=[26,10], dtype=tf.float32, initializer=embedding_initializer
         )
+        else:
+            embedding_initializer=np.load(os.path.join(self._model_path, "embed_matrix_0.npy"))
+            embed_matrix = tf.get_variable(
+            "embed_matrix", dtype=tf.float32, initializer=embedding_initializer
+        )
+        self.embed_matrix=embed_matrix
         embed_cell = tf.nn.embedding_lookup(embed_matrix, self._minibatch_x_placeholder)
         self._output, self._final_state = tf.nn.dynamic_rnn(
             rnn,
@@ -361,6 +399,12 @@ class babbler1900():
             swap_memory=True,
             parallel_iterations=1
         )
+
+        weights_initializer=tf.contrib.layers.xavier_initializer()
+        biases_initializer=tf.zeros_initializer()
+        if not new:
+            weights_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_weights_0.npy")))
+            biases_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_biases_0.npy")))
         
         # If we are training a model on top of the rep model, we need to access
         # the final_hidden rep from output. Recall we are padding these sequences
@@ -375,8 +419,8 @@ class babbler1900():
         flat = tf.reshape(self._output, [-1, self._rnn_size])
         logits_flat = tf.contrib.layers.fully_connected(
             flat, self._vocab_size - 1, activation_fn=None,
-            weights_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_weights_0.npy"))),
-            biases_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_biases_0.npy"))))
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer)
         self._logits = tf.reshape(
             logits_flat, [batch_size, tf_get_shape(self._minibatch_x_placeholder)[1], self._vocab_size - 1])
         batch_losses = tf.contrib.seq2seq.sequence_loss(
@@ -392,6 +436,30 @@ class babbler1900():
             self._single_zero = sess.run(single_zero)
 
      
+
+        weights_initializer=tf.contrib.layers.xavier_initializer()
+        biases_initializer=tf.zeros_initializer()
+        if trained:
+            weights_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_1_weights_0.npy")))
+            biases_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_1_biases_0.npy")))
+
+        # site prediction stuff (added by Srimukh/Forest)
+        site_logits_flat = tf.contrib.layers.fully_connected(
+            flat, 3, activation_fn=None,
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer)
+        self.site_logits = tf.reshape(
+            site_logits_flat, [batch_size, tf_get_shape(self._minibatch_x_placeholder)[1], 3])
+        site_batch_losses = tf.contrib.seq2seq.sequence_loss(
+            self.site_logits,
+            tf.cast(tf.math.maximum(self._minibatch_site_y_placeholder, 0), tf.int32),
+            tf.cast(mask, tf.float32),
+            average_across_batch=False
+        )
+        self.site_loss = tf.reduce_mean(site_batch_losses)
+        self.site_sample = sample_with_temp(self._logits, self._temp_placeholder)
+
+
     def get_rep(self,seq):
         """
         Input a valid amino acid sequence, 
@@ -485,7 +553,7 @@ class babbler1900():
         """
         vs = tf.trainable_variables()
         for v in vs:
-            name = v.name
+            name = v.name.replace(':', '_')
             value = sess.run(v)
             print(name)
             print(value)
@@ -571,208 +639,3 @@ class babbler1900():
             return True
         else:
             return False
-
-class babbler256(babbler1900):
-    """
-    Tested get_rep and get_rep_ops, assumed rest was unaffected by subclassing.
-    """
-
-    def __init__(self,
-                 model_path="./256_weights/",
-                 batch_size=256
-                 ):
-        self._rnn_size = 256
-        self._vocab_size = 26
-        self._embed_dim = 10
-        self._num_layers = 4
-        self._wn = True
-        self._shuffle_buffer = 10000
-        self._model_path = model_path
-        self._batch_size = batch_size
-        self._batch_size_placeholder = tf.placeholder(tf.int32, shape=[], name="batch_size")
-        self._minibatch_x_placeholder = tf.placeholder(
-            tf.int32, shape=[None, None], name="minibatch_x")
-        self._initial_state_placeholder = (
-                tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers)),
-                tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers))
-    )
-        self._minibatch_y_placeholder = tf.placeholder(
-            tf.int32, shape=[None, None], name="minibatch_y")
-        # Batch size dimensional placeholder which gives the
-        # Lengths of the input sequence batch. Used to index into
-        # The final_hidden output and select the stop codon -1
-        # final hidden for the graph operation.
-        self._seq_length_placeholder = tf.placeholder(
-            tf.int32, shape=[None], name="seq_len")
-        self._temp_placeholder = tf.placeholder(tf.float32, shape=[], name="temp")
-        rnn = mLSTMCellStackNPY(num_units=self._rnn_size,
-                            num_layers=self._num_layers,
-                            model_path=model_path,
-                            wn=self._wn)
-        zero_state = rnn.zero_state(self._batch_size, tf.float32)
-        single_zero = rnn.zero_state(1, tf.float32)
-        mask = tf.sign(self._minibatch_y_placeholder)  # 1 for nonpad, zero for pad
-        inverse_mask = 1 - mask  # 0 for nonpad, 1 for pad
-
-        total_padded = tf.reduce_sum(inverse_mask)
-
-        pad_adjusted_targets = (self._minibatch_y_placeholder - 1) + inverse_mask
-
-        embed_matrix = tf.get_variable(
-            "embed_matrix", dtype=tf.float32, initializer=np.load(os.path.join(self._model_path, "embed_matrix_0.npy"))
-        )
-        embed_cell = tf.nn.embedding_lookup(embed_matrix, self._minibatch_x_placeholder)
-        self._output, self._final_state = tf.nn.dynamic_rnn(
-            rnn,
-            embed_cell,
-            initial_state=self._initial_state_placeholder,
-            swap_memory=True,
-            parallel_iterations=1
-        )
-        
-        # If we are training a model on top of the rep model, we need to access
-        # the final_hidden rep from output. Recall we are padding these sequences
-        # to max length, so the -1 position will not necessarily be the right rep.
-        # to get the right rep, I will use the provided sequence length to index.
-        # Subtract one for the last place
-        indices = self._seq_length_placeholder - 1
-        self._top_final_hidden = tf.gather_nd(self._output, tf.stack([tf.range(tf_get_shape(self._output)[0], dtype=tf.int32), indices], axis=1))
-        # LEFTOFF self._output is a batch size, seq_len, num_hidden.
-        # I want to average along num_hidden, but I'll have to figure out how to mask out
-        # the dimensions along sequence_length which are longer than the given sequence.
-        flat = tf.reshape(self._output, [-1, self._rnn_size])
-        logits_flat = tf.contrib.layers.fully_connected(
-            flat, self._vocab_size - 1, activation_fn=None,
-            weights_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_weights_0.npy"))),
-            biases_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_biases_0.npy"))))
-        self._logits = tf.reshape(
-            logits_flat, [batch_size, tf_get_shape(self._minibatch_x_placeholder)[1], self._vocab_size - 1])
-        batch_losses = tf.contrib.seq2seq.sequence_loss(
-            self._logits,
-            tf.cast(pad_adjusted_targets, tf.int32),
-            tf.cast(mask, tf.float32),
-            average_across_batch=False
-        )
-        self._loss = tf.reduce_mean(batch_losses)
-        self._sample = sample_with_temp(self._logits, self._temp_placeholder)
-        with tf.Session() as sess:
-            self._zero_state = sess.run(zero_state)
-            self._single_zero = sess.run(single_zero)
-
-    def get_rep(self,seq):
-        """
-        get_rep needs to be minorly adjusted to accomadate the different state size of the 
-        stack.
-        Input a valid amino acid sequence, 
-        outputs a tuple of average hidden, final hidden, final cell representation arrays.
-        Unfortunately, this method accepts one sequence at a time and is as such quite
-        slow.
-        """
-        with tf.Session() as sess:
-            initialize_uninitialized(sess)
-            # Strip any whitespace and convert to integers with the correct coding
-            int_seq = aa_seq_to_int(seq.strip())[:-1]
-            # Final state is a cell_state, hidden_state tuple. Output is
-            # all hidden states
-            final_state_, hs = sess.run(
-                [self._final_state, self._output], feed_dict={
-                    self._batch_size_placeholder: 1,
-                    self._minibatch_x_placeholder: [int_seq],
-                    self._initial_state_placeholder: self._zero_state}
-            )
-
-        final_cell, final_hidden = final_state_
-        # Because this is a deep model, each of final hidden and final cell is tuple of num_layers
-        final_cell = final_cell[-1]
-        final_hidden = final_hidden[-1]
-        hs = hs[0]
-        avg_hidden = np.mean(hs, axis=0)
-        return avg_hidden, final_hidden[0], final_cell[0]
-
-
-class babbler64(babbler256):
-    """
-    Tested get_rep and dump weights. Assumed rest unaffected by subclassing.
-    """
-
-    def __init__(self,
-                 model_path="./64_weights/",
-                 batch_size=256
-                 ):
-        self._rnn_size = 64
-        self._vocab_size = 26
-        self._embed_dim = 10
-        self._num_layers = 4
-        self._wn = True
-        self._shuffle_buffer = 10000
-        self._model_path = model_path
-        self._batch_size = batch_size
-        self._batch_size_placeholder = tf.placeholder(tf.int32, shape=[], name="batch_size")
-        self._minibatch_x_placeholder = tf.placeholder(
-            tf.int32, shape=[None, None], name="minibatch_x")
-        self._initial_state_placeholder = (
-                tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers)),
-                tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers))
-    )
-        self._minibatch_y_placeholder = tf.placeholder(
-            tf.int32, shape=[None, None], name="minibatch_y")
-        # Batch size dimensional placeholder which gives the
-        # Lengths of the input sequence batch. Used to index into
-        # The final_hidden output and select the stop codon -1
-        # final hidden for the graph operation.
-        self._seq_length_placeholder = tf.placeholder(
-            tf.int32, shape=[None], name="seq_len")
-        self._temp_placeholder = tf.placeholder(tf.float32, shape=[], name="temp")
-        rnn = mLSTMCellStackNPY(num_units=self._rnn_size,
-                            num_layers=self._num_layers,
-                            model_path=model_path,
-                            wn=self._wn)
-        zero_state = rnn.zero_state(self._batch_size, tf.float32)
-        single_zero = rnn.zero_state(1, tf.float32)
-        mask = tf.sign(self._minibatch_y_placeholder)  # 1 for nonpad, zero for pad
-        inverse_mask = 1 - mask  # 0 for nonpad, 1 for pad
-
-        total_padded = tf.reduce_sum(inverse_mask)
-
-        pad_adjusted_targets = (self._minibatch_y_placeholder - 1) + inverse_mask
-
-        embed_matrix = tf.get_variable(
-            "embed_matrix", dtype=tf.float32, initializer=np.load(os.path.join(self._model_path, "embed_matrix_0.npy"))
-        )
-        embed_cell = tf.nn.embedding_lookup(embed_matrix, self._minibatch_x_placeholder)
-        self._output, self._final_state = tf.nn.dynamic_rnn(
-            rnn,
-            embed_cell,
-            initial_state=self._initial_state_placeholder,
-            swap_memory=True,
-            parallel_iterations=1
-        )
-        
-        # If we are training a model on top of the rep model, we need to access
-        # the final_hidden rep from output. Recall we are padding these sequences
-        # to max length, so the -1 position will not necessarily be the right rep.
-        # to get the right rep, I will use the provided sequence length to index.
-        # Subtract one for the last place
-        indices = self._seq_length_placeholder - 1
-        self._top_final_hidden = tf.gather_nd(self._output, tf.stack([tf.range(tf_get_shape(self._output)[0], dtype=tf.int32), indices], axis=1))
-        # LEFTOFF self._output is a batch size, seq_len, num_hidden.
-        # I want to average along num_hidden, but I'll have to figure out how to mask out
-        # the dimensions along sequence_length which are longer than the given sequence.
-        flat = tf.reshape(self._output, [-1, self._rnn_size])
-        logits_flat = tf.contrib.layers.fully_connected(
-            flat, self._vocab_size - 1, activation_fn=None,
-            weights_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_weights_0.npy"))),
-            biases_initializer=tf.constant_initializer(np.load(os.path.join(self._model_path, "fully_connected_biases_0.npy"))))
-        self._logits = tf.reshape(
-            logits_flat, [batch_size, tf_get_shape(self._minibatch_x_placeholder)[1], self._vocab_size - 1])
-        batch_losses = tf.contrib.seq2seq.sequence_loss(
-            self._logits,
-            tf.cast(pad_adjusted_targets, tf.int32),
-            tf.cast(mask, tf.float32),
-            average_across_batch=False
-        )
-        self._loss = tf.reduce_mean(batch_losses)
-        self._sample = sample_with_temp(self._logits, self._temp_placeholder)
-        with tf.Session() as sess:
-            self._zero_state = sess.run(zero_state)
-            self._single_zero = sess.run(single_zero)
