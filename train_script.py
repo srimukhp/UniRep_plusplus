@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     if not os.path.exists('processed_uniprot.csv'):
         print("processing uniprot data and saving to csv for future reference")
-        df = pd.read_csv('uniprot.tab', sep='\t', lineterminator='\n')
+        df = pd.read_csv('UniProt_data/uniprot.tab', sep='\t', lineterminator='\n')
         df = df.fillna('')
         df.loc[:, 'Active site'] = df.loc[:, 'Active site'].apply(get_sites)
         df.loc[:, 'Binding site'] = df.loc[:, 'Binding site'].apply(get_binding_sites)
