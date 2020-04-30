@@ -345,7 +345,7 @@ class babbler1900():
             self._initial_state_placeholder = (
                 tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers)),
                 tuple(tf.placeholder(tf.float32, shape=[None, self._rnn_size]) for _ in range(self._num_layers))
-        )
+        ) # for cell state and hidden state
 
         self._minibatch_y_placeholder = tf.placeholder(
             tf.int32, shape=[None, None], name="minibatch_y")
@@ -420,10 +420,10 @@ class babbler1900():
         logits_flat = tf.contrib.layers.fully_connected(
             flat, self._vocab_size - 1, activation_fn=None,
             weights_initializer=weights_initializer,
-            biases_initializer=biases_initializer)
+            biases_initializer=biases_initializer) # f(XE, h_0, c_0)*W_r + B (in supplementary info)
         self._logits = tf.reshape(
             logits_flat, [batch_size, tf_get_shape(self._minibatch_x_placeholder)[1], self._vocab_size - 1])
-        batch_losses = tf.contrib.seq2seq.sequence_loss(
+        batch_losses = tf.contrib.seq2seq.sequence_loss( # sigmoid function is probably in here?
             self._logits,
             tf.cast(pad_adjusted_targets, tf.int32),
             tf.cast(mask, tf.float32),
