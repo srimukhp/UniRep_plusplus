@@ -7,15 +7,14 @@ import sys
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from IPython.display import clear_output
-from six.moves import urllib
 import json
 import math
 import argparse
 import sys
 
-sys.path.insert(1, '/Users/srimukh/UniRep_finetune/')
+new_path = os.getcwd().replace('/UniProt_data','')
+print('new_path: ',new_path)
+sys.path.insert(1, new_path)
 from UniRep.unirep import babbler1900 as babbler
 
 
@@ -81,7 +80,13 @@ X_train = np.zeros((len_rep, m))
 Y_train = np.zeros((m,1))
 
 for row in range(m):
-    if (row % 100 ==0): print(row)
+    if (row % 10 ==0):
+        print('Writing row number :', row)
+        np_concat = np.concatenate((X_train, Y_train.T), axis=0)
+
+        print('Saving to ', args.save_dir)
+        np.save(args.save_dir, np_concat)
+
     X_train[:,row], Y_train[row] = make_xy(df_active_site.iloc[row])
 
 
