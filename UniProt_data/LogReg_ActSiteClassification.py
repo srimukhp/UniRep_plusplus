@@ -172,7 +172,6 @@ if __name__ == '__main__':
     parser.add_argument('--trained', action='store_true', default=False, help='Set to True if weights should be read from a file, set --weight_file')
     parser.add_argument('--output_file', type=str, required=True, help='File to write accuracy and costs')
     parser.add_argument('--rnn_size', type=int, required=True)
-    parser.add_argument('--aa_rep', type=int, required=True, help='Pass 1 for D-MPNN rep and 2 for RDKit reps')
     parser.add_argument('--batch_size', type=int, required=True)
     parser.add_argument('--num_epochs', type=int, required=True)
 
@@ -186,14 +185,6 @@ if __name__ == '__main__':
     initialize_toplayer_from_scratch = True # does not matter for babbler unless doing Evotuning
     batch_size = args.batch_size
     len_unirep = rnn_size
-
-    # Amino acid representation
-    if args.aa_rep == 1:
-        use_dmpnn = True
-    elif args.aa_rep == 2:
-        raise ValueError('RDKit reps not yet implemented')
-    else:
-        raise IndexError('Unknown --aa_rep=',args.aa_rep)
 
     num_class = 5
 
