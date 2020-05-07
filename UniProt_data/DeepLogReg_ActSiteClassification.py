@@ -202,8 +202,8 @@ if __name__ == '__main__':
 
     rep_mat = np.load(args.input_file)
     # Using only a small subset for testing
-    print('Using only 1024 samples for testing')
-    rep_mat = rep_mat[:,:1024]
+    # print('Using only 1024 samples for testing')
+    # rep_mat = rep_mat[:,:1024]
 
     len_rep = rep_mat.shape[0]
 
