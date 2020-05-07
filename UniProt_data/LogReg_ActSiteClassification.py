@@ -1,4 +1,3 @@
-import tensorflow.compat.v2.feature_column as fc
 import tensorflow as tf
 from tensorflow.python.framework import ops
 
