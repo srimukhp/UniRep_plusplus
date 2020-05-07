@@ -203,7 +203,6 @@ if __name__ == '__main__':
     rep_mat = np.load(args.input_file)
     len_rep = rep_mat.shape[0]
     # Using only a small subset for testing
-    rep_mat = rep_mat[:,:1024]
     train_mask = np.arange(rep_mat.shape[1]) % 10 == 0
     train_set = rep_mat[:, ~train_mask]
     test_set = rep_mat[:, train_mask]
