@@ -8,6 +8,16 @@ from UniRep.unirep import babbler1900 as babbler
 import matplotlib.pyplot as plt
 import pickle
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def get_sites(string, site_type='ACT_SITE'):
     """string=site entry
     Returns the sites as a list, e.g. if 
@@ -66,7 +76,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_layers', type=int, default=4)
     parser.add_argument('--save_dir', type=str)
     parser.add_argument('--site_loss', type=bool, default=False)
-    parser.add_argument('--trained', type=bool, default=True)
+    parser.add_argument('--trained', type=str2bool, default=True)
 
     args = parser.parse_args()
     print(args)
@@ -90,11 +100,11 @@ if __name__ == '__main__':
         print("Uniprot data had already been processed. Loading from csv")
         df = pd.read_csv('processed_uniprot.csv')
 
-    batch_size = 12
+    batch_size = 1
     b = babbler(batch_size=batch_size, model_path=args.init_path, trained=(args.init_path != '.') and args.trained, 
                 rnn_size=args.rnn_size, n_layers=args.n_layers, new=args.init_path == '.')
 
-    df_le = df[df['Length']<400]
+    df_le = df[df['Length']<500]
     test_mask = (np.arange(len(df_le)) % 5)==0
     df_tr = df_le[~test_mask]
     df_test = df_le[test_mask]
