@@ -110,7 +110,7 @@ if __name__ == '__main__':
     optimizer = tf.train.AdamOptimizer(0.001)
 
     if args.site_loss: 
-        all_step_op = optimizer.minimize(b._loss+b.site_loss)
+        all_step_op = optimizer.minimize(b._loss+0.1*b.site_loss)
     else:
         print("No site loss!")
         all_step_op = optimizer.minimize(b._loss)
