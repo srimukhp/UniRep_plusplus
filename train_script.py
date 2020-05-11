@@ -75,8 +75,9 @@ if __name__ == '__main__':
     parser.add_argument('--rnn_size', type=int, default=256)
     parser.add_argument('--n_layers', type=int, default=4)
     parser.add_argument('--save_dir', type=str)
-    parser.add_argument('--site_loss', type=bool, default=False)
+    parser.add_argument('--site_loss', type=str2bool, default=False)
     parser.add_argument('--trained', type=str2bool, default=True)
+    parser.add_argument('--batch_size', type=int, default=1)
 
     args = parser.parse_args()
     print(args)
@@ -100,7 +101,7 @@ if __name__ == '__main__':
         print("Uniprot data had already been processed. Loading from csv")
         df = pd.read_csv('processed_uniprot.csv')
 
-    batch_size = 1
+    batch_size = args.batch_size
     b = babbler(batch_size=batch_size, model_path=args.init_path, trained=(args.init_path != '.') and args.trained, 
                 rnn_size=args.rnn_size, n_layers=args.n_layers, new=args.init_path == '.')
 
