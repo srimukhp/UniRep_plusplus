@@ -78,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--site_loss', type=str2bool, default=False)
     parser.add_argument('--trained', type=str2bool, default=True)
     parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--continuee', type=str2bool, default=False)
 
     args = parser.parse_args()
     print(args)
@@ -105,7 +106,7 @@ if __name__ == '__main__':
     b = babbler(batch_size=batch_size, model_path=args.init_path, trained=(args.init_path != '.') and args.trained, 
                 rnn_size=args.rnn_size, n_layers=args.n_layers, new=args.init_path == '.')
 
-    df_le = df[df['Length']<500]
+    df_le = df[df['Length']<400]
     test_mask = (np.arange(len(df_le)) % 5)==0
     df_tr = df_le[~test_mask]
     df_test = df_le[test_mask]
@@ -129,12 +130,19 @@ if __name__ == '__main__':
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
 
+    if args.continuee:
+        with open(f"{args.init_path}/iter.txt", 'r') as f:
+            starti = int(f.readline())
+            print("already trained for", starti, "iters")
+    else:
+        starti=0
+
     losses, site_losses = [], [] 
     test_losses, test_site_losses = [], [] 
     print(f"START OF TRAINING FOR {args.num_iters} ITERATIONS")
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        for i in range(args.num_iters):
+        for i in range(starti, args.num_iters):
             batch = sess.run(bucket_op)
             seq_batch = batch[:, ::2]
             site_seq_batch = batch[:, 1::2]-1
@@ -174,16 +182,21 @@ if __name__ == '__main__':
                 test_losses.append(sum_test_loss/3)
                 test_site_losses.append(sum_test_site_loss/3)
                 print(f"Iteration {i}, test loss {test_losses[-1]}, site loss {test_site_losses[-1]}")
+                b.dump_weights(sess, args.save_dir)
+                with open(f"{args.save_dir}/iter.txt", 'w') as f:
+                    f.write(f"{i+1}")
         b.dump_weights(sess, args.save_dir)
+    with open(f"{args.save_dir}/iter.txt", 'w') as f:
+        f.write(f"{args.num_iters}")
 
     fig, ax = plt.subplots(1,2, figsize=(13, 5))
-    ax[0].plot(np.arange(args.num_iters), losses)
+    ax[0].plot(np.arange(starti+1, args.num_iters+1), losses)
     ax[0].set_xlabel('iteration number')
     ax[0].set_ylabel('train loss')
     ax[0].set_title('Next amino acid prediction loss')
 
     if args.site_loss:
-        ax[1].plot(np.arange(args.num_iters), site_losses)
+        ax[1].plot(np.arange(starti+1, args.num_iters+1), site_losses)
         ax[1].set_xlabel('iteration number')
         ax[1].set_ylabel('train site loss')
         ax[1].set_title('Site type (normal/active/binding) loss')
@@ -207,6 +220,6 @@ if __name__ == '__main__':
         all_losses = {'train_losses': losses, 'test_losses': test_losses, 
                       'test_site_losses': test_site_losses}
         if args.site_loss:
-            all_losses['train_site_losses': site_losses]
+            all_losses['train_site_losses']= site_losses
         pickle.dump(all_losses, f)
 
