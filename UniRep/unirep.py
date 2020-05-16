@@ -575,14 +575,19 @@ class babbler1900():
             int_seq = aa_seq_to_int(seq.strip())[:-1]
         return int_seq
 
-    def get_reps(self,seqs, batch_size = 12):
+    def get_reps(self,seqs, batch_size = 12, inds=None):
         """
         Input a valid amino acid sequence, 
         outputs a tuple of average hidden, final hidden, final cell representation arrays.
         Unfortunately, this method accepts one sequence at a time and is as such quite
         slow.
+
+        inds: list of lists, list contains indices of the residues of the protein corresponding to the list
+              whose hidden you want to extract. E.g. if inds = [[134], [10,220], [70, 140], ..], that means you 
+              want to get the 134th hidden representation for the first protein, the 10th/220th for the second,
+              70th/140th for the third, etc. These are stored in specific_hiddens
         """
-        final_cells, final_hiddens, avg_hiddens = [], [], []
+        final_cells, final_hiddens, avg_hiddens, specific_hiddens = [], [], [], []
         with tf.Session() as sess:
             initialize_uninitialized(sess)
             # Strip any whitespace and convert to integers with the correct coding
@@ -607,6 +612,13 @@ class babbler1900():
                 )
 
                 final_cell, final_hidden = final_state_
+                if inds is not None:
+                    for j in range(n):
+                        specs = []
+                        for ind in inds[i+j]:
+                            
+                            specs.append(hs[j][ind])
+                        specific_hiddens.append(np.array(specs))
                 final_cells.append(final_cell)
                 final_hiddens.append(hs[np.arange(n), lengths-1])
                 avg_hidden = []
@@ -614,7 +626,9 @@ class babbler1900():
                     avg_hidden.append(hs[j][:lengths[j]].mean(axis=0))
                 avg_hiddens.append(np.array(avg_hidden))
 
-        return np.concatenate(avg_hiddens), np.concatenate(final_hiddens), np.concatenate(final_cells)
+        if inds is not None:
+            return np.concatenate(avg_hiddens), np.concatenate(final_hiddens), np.concatenate(final_cells), specific_hiddens
+        return np.concatenate(avg_hiddens), np.concatenate(final_hiddens), np.concatenate(final_cells), specific_hiddens
 
     def bucket_batch_pad(self,filepath, upper=2000, lower=50, interval=10):
         """
