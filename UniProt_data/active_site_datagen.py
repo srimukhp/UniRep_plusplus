@@ -40,6 +40,10 @@ model_path = '../UniRep/'+init_path
 len_unirep = rnn_size
 
 print('Loading weights from ', model_path)
+
+start = args.start 
+stop = args.stop
+
 save_dir = 'hs{}_nl{}_{}_to_{}'.format(rnn_size, args.n_layers, args.start, args.stop)
 # Amino acid representations
 
@@ -74,12 +78,13 @@ def make_xy(row, batch_size):
         mol_rep[:,count:count+1] = aa_reps[act_site[i]]
         count+=1
     final_hidden = final_hidden.T
+    print('Y axis: ', act_site_type)
+
     act_site_type = act_site_type-1
     act_site_type = act_site_type.reshape(act_site_type.shape[0],1)
     return np.concatenate((final_hidden, mol_rep), axis=0), act_site_type.T
 
-start = args.start 
-stop = args.stop
+
 
 df_active_site = pd.read_excel(args.filename ,header=[0],index_col=[0])
 df_active_site = df_active_site[start:stop]
