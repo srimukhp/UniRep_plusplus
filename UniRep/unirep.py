@@ -325,6 +325,10 @@ class babbler1900():
                  model_path="./pbab_weights",
                  batch_size=256, trained=False,
                  rnn_size=1900, new=False, n_layers=1):
+
+        # new == True initializes the mLSTM from scratch
+        # trained == False initializes the top weigth and bias layer to scratch 
+            # for performing predictions/classifications using hidden rep 
         self._rnn_size = rnn_size
         self._num_layers = n_layers
         self._vocab_size = 26
@@ -488,6 +492,44 @@ class babbler1900():
         hs = hs[0]
         avg_hidden = np.mean(hs, axis=0)
         return avg_hidden, final_hidden, final_cell
+
+    def get_reps(self,seqs, batch_size):
+            """
+            Batch size should be the same as the initialized value
+            """
+            final_cells, final_hiddens, avg_hiddens = [], [], []
+            with tf.Session() as sess:
+                initialize_uninitialized(sess)
+                # Strip any whitespace and convert to integers with the correct coding
+                
+                # Final state is a cell_state, hidden_state tuple. Output is
+                # all hidden states
+                # print(len(seqs)-len(seqs)%batch_size, batch_size)
+                for i in range(0, len(seqs)-(len(seqs)%batch_size), batch_size):
+                    int_seqs = []
+                    for seq in seqs[i:min(i+batch_size, len(seqs))]:
+                        int_seqs.append(aa_seq_to_int(seq.strip())[:-1])
+                    n = len(int_seqs)
+                    lengths = np.array([len(int_seq) for int_seq in int_seqs])
+                    seq_array = np.zeros((n, lengths.max()))
+                    for j in range(n):
+                        seq_array[j, :lengths[j]] = int_seqs[j]
+
+                    final_state_, hs = sess.run(
+                        [self._final_state, self._output], feed_dict={
+                            self._batch_size_placeholder: n,
+                            self._minibatch_x_placeholder: seq_array,
+                            self._initial_state_placeholder: self._zero_state}
+                    )
+
+                    final_cell, final_hidden = final_state_
+                    final_cells.append(final_cell)
+                    final_hiddens.append(hs[np.arange(n), lengths-1])
+                    avg_hidden = []
+                    for j in range(n):
+                        avg_hidden.append(hs[j][:lengths[j]].mean(axis=0))
+                    avg_hiddens.append(np.array(avg_hidden))
+            return np.concatenate(avg_hiddens), np.concatenate(final_hiddens), np.concatenate(final_cells)
 
     def get_babble(self, seed, length=250, temp=1):
         """
