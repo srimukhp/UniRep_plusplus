@@ -1,2 +1,3 @@
 # UniRep_finetune
-A repository for fine-tuning UniRep along with feature information
+A repository for identifying protein function using protein sequence information.
+
